@@ -1,0 +1,159 @@
+version: '3.9'
+
+# ══════════════════════════════════════════════
+#  EduSuite Development Stack
+#  MongoDB (primary DB) + Redis + RabbitMQ
+# ══════════════════════════════════════════════
+
+networks:
+  edusuite-dev:
+    driver: bridge
+
+volumes:
+  mongo-data:
+  mongo-config:
+  redis-data:
+  rabbitmq-data:
+  rabbitmq-logs:
+
+services:
+
+  # ─── MongoDB (Primary Database) ──────────────
+  mongodb:
+    image: mongo:8.0
+    container_name: edusuite-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-edusuite}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-edusuite_dev_pass}
+      MONGO_INITDB_DATABASE: ${DB_NAME:-edusuite}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - ./init/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    ports:
+      - '27017:27017'
+    networks:
+      - edusuite-dev
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ─── MongoDB Express (Web UI) ─────────────────
+  mongo-express:
+    image: mongo-express:latest
+    container_name: edusuite-mongo-express
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_ROOT_USER:-edusuite}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_ROOT_PASSWORD:-edusuite_dev_pass}
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_BASICAUTH: false
+    ports:
+      - '8081:8081'
+    networks:
+      - edusuite-dev
+    profiles:
+      - dev-tools
+
+  # ─── Redis ────────────────────────────────────
+  redis:
+    image: redis:7.4-alpine
+    container_name: edusuite-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-redis_dev_pass}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfilename "edusuite.aof"
+    volumes:
+      - redis-data:/data
+    ports:
+      - '6379:6379'
+    networks:
+      - edusuite-dev
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-redis_dev_pass}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis Commander (Web UI) ─────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: edusuite-redis-commander
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_HOSTS: 'local:redis:6379:0:${REDIS_PASSWORD:-redis_dev_pass}'
+    ports:
+      - '8082:8081'
+    networks:
+      - edusuite-dev
+    profiles:
+      - dev-tools
+
+  # ─── RabbitMQ (Message Queue) ─────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: edusuite-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-edusuite}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-rabbitmq_dev_pass}
+      RABBITMQ_DEFAULT_VHOST: edusuite
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-logs:/var/log/rabbitmq
+    ports:
+      - '5672:5672'   # AMQP
+      - '15672:15672' # Management UI
+    networks:
+      - edusuite-dev
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── MailHog (Local Email Testing) ────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: edusuite-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI
+    networks:
+      - edusuite-dev
+    profiles:
+      - dev-tools
+
+  # ─── MinIO (S3-compatible, optional backup) ───
+  # NOTE: Primary file storage is Cloudinary
+  # MinIO is optional for local development backup
+  minio:
+    image: minio/minio:latest
+    container_name: edusuite-minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-edusuite}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minio_dev_pass}
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - edusuite-dev
+    profiles:
+      - optional
