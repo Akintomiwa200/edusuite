@@ -1,17 +1,13 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Turbopack for faster development (Next 15 default)
-  // turbopack: {},
+  // Enable React Compiler on Next 16 if needed
+  reactCompiler: false,
 
   // Experimental features
   experimental: {
-    // Server actions are stable in Next 15
     serverActions: { bodySizeLimit: '10mb' },
-    // Partial prerendering
     ppr: false,
-    // React compiler
-    reactCompiler: false,
   },
 
   // Image optimization
@@ -82,12 +78,9 @@ const nextConfig: NextConfig = {
     return config
   },
 
-  // TypeScript & ESLint
+  // TypeScript
   typescript: {
     ignoreBuildErrors: false,
-  },
-  eslint: {
-    ignoreDuringBuilds: false,
   },
 
   // Output
