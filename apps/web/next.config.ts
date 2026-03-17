@@ -78,6 +78,9 @@ const nextConfig: NextConfig = {
     return config
   },
 
+  // Turbopack
+  turbopack: {},
+
   // TypeScript
   typescript: {
     ignoreBuildErrors: false,

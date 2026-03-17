@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 
 @ApiTags('Transport')
 @ApiBearerAuth()
